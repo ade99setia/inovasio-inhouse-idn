@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # ─── Node.js Express API ───────────────────────────────────────────
+  api:
+    container_name: inhouse_training_api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8088:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=devuser
+      - DB_PASSWORD=PasswordAman123!
+      - DB_NAME=db_training
+      - JWT_SECRET=inhouse-training-jwt-secret-2024
+      - JWT_EXPIRES_IN=24h
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network_inhouse_training
+      - shared_web_network
+    restart: unless-stopped
+
+  # ─── MySQL 8 Database ──────────────────────────────────────────────
+  db:
+    container_name: inhouse_training_db
+    image: mysql:8.0
+    ports:
+      - "3309:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=RootTraining123!
+      - MYSQL_DATABASE=db_training
+      - MYSQL_USER=devuser
+      - MYSQL_PASSWORD=PasswordAman123!
+    volumes:
+      - inhouse_training_db_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - app_network_inhouse_training
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pRootTraining123!"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+networks:
+  app_network_inhouse_training:
+    driver: bridge
+  shared_web_network:
+    external: true
+
+volumes:
+  inhouse_training_db_data:
+    driver: local
