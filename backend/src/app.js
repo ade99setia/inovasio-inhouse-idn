@@ -1,85 +1,84 @@
-require('dotenv').config();
-
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
-const db = require('./config/database');
+const rateLimit = require('express-rate-limit');
 
-// Import routes
 const authRoutes = require('./routes/auth.routes');
 const productRoutes = require('./routes/product.routes');
 const orderRoutes = require('./routes/order.routes');
+const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// ─── Middleware ─────────────────────────────────────────────
+// ─── Security Middleware ────────────────────────────────────
+app.use(helmet());
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// ─── Rate Limiting ──────────────────────────────────────────
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many requests, please try again later.',
+    error: { code: 'RATE_LIMIT_EXCEEDED' }
+  }
+});
+app.use('/api', limiter);
+
+// ─── Body Parsing ───────────────────────────────────────────
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // ─── Request Logger (development) ──────────────────────────
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.url}`);
-  next();
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
+}
 
 // ─── Health Check ───────────────────────────────────────────
-app.get('/api/health', async (req, res) => {
+app.get('/api/v1/health', async (req, res) => {
+  const db = require('./config/database');
   try {
     const [rows] = await db.query('SELECT 1 AS status');
     res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      database: rows[0].status === 1 ? 'connected' : 'error',
-      environment: process.env.NODE_ENV || 'development'
+      success: true,
+      message: 'Server is running.',
+      data: {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        database: rows[0].status === 1 ? 'connected' : 'error',
+        environment: process.env.NODE_ENV || 'development'
+      }
     });
   } catch (error) {
     res.status(503).json({
-      status: 'error',
-      timestamp: new Date().toISOString(),
-      database: 'disconnected',
-      message: error.message
+      success: false,
+      message: 'Service unavailable.',
+      error: { code: 'SERVICE_UNAVAILABLE' }
     });
   }
 });
 
 // ─── API Routes ─────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/orders', orderRoutes);
 
 // ─── 404 Handler ────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
-    status: 'error',
-    message: `Route ${req.method} ${req.url} not found`
+    success: false,
+    message: `Route ${req.method} ${req.url} not found.`,
+    error: { code: 'NOT_FOUND' }
   });
 });
 
-// ─── Global Error Handler ───────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error('Unhandled Error:', err);
-  res.status(err.status || 500).json({
-    status: 'error',
-    message: process.env.NODE_ENV === 'production'
-      ? 'Internal server error'
-      : err.message
-  });
-});
-
-// ─── Start Server ───────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`
-  ╔══════════════════════════════════════════════╗
-  ║   Inhouse Training - Order Management API   ║
-  ╠══════════════════════════════════════════════╣
-  ║  Status  : Running                          ║
-  ║  Port    : ${PORT}                             ║
-  ║  Env     : ${(process.env.NODE_ENV || 'development').padEnd(15)}          ║
-  ║  Health  : http://localhost:${PORT}/api/health  ║
-  ╚══════════════════════════════════════════════╝
-  `);
-});
+// ─── Centralized Error Handler ──────────────────────────────
+app.use(errorHandler);
 
 module.exports = app;

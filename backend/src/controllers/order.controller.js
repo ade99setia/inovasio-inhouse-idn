@@ -1,200 +1,63 @@
-const OrderModel = require('../models/order.model');
-const ProductModel = require('../models/product.model');
-const { v4: uuidv4 } = require('uuid');
+const orderService = require('../services/order.service');
+const asyncHandler = require('../utils/asyncHandler');
+const response = require('../utils/response');
 
-class OrderController {
+/**
+ * Order Controller
+ * Handles HTTP req/res only - no business logic
+ */
+const orderController = {
   /**
-   * GET /api/orders
-   * Get all orders (admin gets all, customer gets own)
+   * GET /api/v1/orders
    */
-  static async getAll(req, res) {
-    try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const status = req.query.status || null;
+  getAll: asyncHandler(async (req, res) => {
+    const { page, limit, status } = req.query;
+    const result = await orderService.getAll({ page, limit, status, user: req.user });
 
-      // Admin sees all, customer sees own orders only
-      const userId = req.user.role === 'admin' ? null : req.user.id;
-
-      const result = await OrderModel.findAll({ page, limit, userId, status });
-
-      res.json({
-        status: 'success',
-        ...result
-      });
-    } catch (error) {
-      console.error('Get Orders Error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
+    return response.success(res, {
+      message: 'Orders retrieved successfully.',
+      data: result
+    });
+  }),
 
   /**
-   * GET /api/orders/:id
-   * Get order detail with items
+   * GET /api/v1/orders/:id
    */
-  static async getById(req, res) {
-    try {
-      const order = await OrderModel.findById(req.params.id);
+  getById: asyncHandler(async (req, res) => {
+    const order = await orderService.getById(parseInt(req.params.id), req.user);
 
-      if (!order) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Order not found.'
-        });
-      }
-
-      // Customer can only see own orders
-      if (req.user.role !== 'admin' && order.user_id !== req.user.id) {
-        return res.status(403).json({
-          status: 'error',
-          message: 'Forbidden. Cannot access other user\'s orders.'
-        });
-      }
-
-      res.json({
-        status: 'success',
-        data: { order }
-      });
-    } catch (error) {
-      console.error('Get Order Error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
+    return response.success(res, {
+      message: 'Order retrieved successfully.',
+      data: { order }
+    });
+  }),
 
   /**
-   * POST /api/orders
-   * Create new order
-   * Body: { items: [{ product_id, quantity }] }
+   * POST /api/v1/orders
    */
-  static async create(req, res) {
-    try {
-      const { items } = req.body;
+  create: asyncHandler(async (req, res) => {
+    const { items } = req.body;
+    const order = await orderService.create({ items, user: req.user });
 
-      // Validation
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Order items are required. Provide an array of { product_id, quantity }.'
-        });
-      }
-
-      // Validate each item and get current prices
-      const orderItems = [];
-      for (const item of items) {
-        if (!item.product_id || !item.quantity || item.quantity <= 0) {
-          return res.status(400).json({
-            status: 'error',
-            message: 'Each item must have product_id and quantity > 0.'
-          });
-        }
-
-        const product = await ProductModel.findById(item.product_id);
-        if (!product) {
-          return res.status(404).json({
-            status: 'error',
-            message: `Product with ID ${item.product_id} not found.`
-          });
-        }
-
-        if (product.stock < item.quantity) {
-          return res.status(400).json({
-            status: 'error',
-            message: `Insufficient stock for "${product.name}". Available: ${product.stock}, Requested: ${item.quantity}.`
-          });
-        }
-
-        orderItems.push({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: product.price  // Snapshot current price
-        });
-      }
-
-      // Generate order number
-      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const shortId = uuidv4().split('-')[0].toUpperCase();
-      const order_number = `ORD-${date}-${shortId}`;
-
-      // Create order with transaction
-      const order = await OrderModel.create({
-        user_id: req.user.id,
-        order_number,
-        items: orderItems
-      });
-
-      // Fetch complete order
-      const fullOrder = await OrderModel.findById(order.id);
-
-      res.status(201).json({
-        status: 'success',
-        message: 'Order created successfully.',
-        data: { order: fullOrder }
-      });
-    } catch (error) {
-      console.error('Create Order Error:', error);
-
-      if (error.message.includes('Insufficient stock')) {
-        return res.status(400).json({
-          status: 'error',
-          message: error.message
-        });
-      }
-
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
+    return response.created(res, {
+      message: 'Order created successfully.',
+      data: { order }
+    });
+  }),
 
   /**
-   * PATCH /api/orders/:id/status
-   * Update order status (admin only)
-   * Body: { status: 'processing' | 'completed' | 'cancelled' }
+   * PATCH /api/v1/orders/:id/status
    */
-  static async updateStatus(req, res) {
-    try {
-      const { id } = req.params;
-      const { status } = req.body;
+  updateStatus: asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { status } = req.body;
+    const order = await orderService.updateStatus(id, status);
 
-      const validStatuses = ['pending', 'processing', 'completed', 'cancelled'];
-      if (!status || !validStatuses.includes(status)) {
-        return res.status(400).json({
-          status: 'error',
-          message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
-        });
-      }
+    return response.success(res, {
+      message: `Order status updated to "${status}".`,
+      data: { order }
+    });
+  })
+};
 
-      const order = await OrderModel.findById(id);
-      if (!order) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Order not found.'
-        });
-      }
-
-      await OrderModel.updateStatus(id, status);
-      const updated = await OrderModel.findById(id);
-
-      res.json({
-        status: 'success',
-        message: `Order status updated to "${status}".`,
-        data: { order: updated }
-      });
-    } catch (error) {
-      console.error('Update Status Error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
-}
-
-module.exports = OrderController;
+module.exports = orderController;

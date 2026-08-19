@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Inhouse Training - Order Management API",
-    "description": "REST API Order Management System\n\nBase URL: {{base_url}}\n\nAkun Testing:\n- admin@inovasia.com / password123 (admin)\n- budi@inovasia.com / password123 (customer)",
+    "name": "Inhouse Training - Order Management API v2",
+    "description": "REST API Order Management System - Layered Architecture\n\nBase URL: {{base_url}}\n\nAkun Testing:\n- admin@inovasia.com / password123 (admin)\n- budi@inovasia.com / password123 (customer)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -51,11 +51,11 @@
           }
         },
         {
-          "name": "Get Profile",
+          "name": "Get Profile (Me)",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": { "raw": "{{base_url}}/auth/profile", "host": ["{{base_url}}"], "path": ["auth", "profile"] }
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
           }
         }
       ]
@@ -131,7 +131,7 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": { "raw": "{{base_url}}/orders?status=pending", "host": ["{{base_url}}"], "path": ["orders"], "query": [{ "key": "status", "value": "pending" }] }
+            "url": { "raw": "{{base_url}}/orders?page=1&limit=10&status=pending", "host": ["{{base_url}}"], "path": ["orders"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }, { "key": "status", "value": "pending" }] }
           }
         },
         {
@@ -157,7 +157,64 @@
             "method": "PATCH",
             "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" }],
             "body": { "mode": "raw", "raw": "{\n  \"status\": \"processing\"\n}" },
-            "url": { "raw": "{{base_url}}/orders/1/status", "host": ["{{base_url}}"], "path": ["orders", "1", "status"] }
+            "url": { "raw": "{{base_url}}/orders/4/status", "host": ["{{base_url}}"], "path": ["orders", "4", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error Cases",
+      "item": [
+        {
+          "name": "Validation Error (Empty Register)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Unauthorized (No Token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Forbidden (Customer Create Product)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sku\": \"TEST\",\n  \"name\": \"Test\",\n  \"price\": 100\n}" },
+            "url": { "raw": "{{base_url}}/products", "host": ["{{base_url}}"], "path": ["products"] }
+          }
+        },
+        {
+          "name": "Not Found (Product 999)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/products/999", "host": ["{{base_url}}"], "path": ["products", "999"] }
+          }
+        },
+        {
+          "name": "Insufficient Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"items\": [\n    { \"product_id\": 1, \"quantity\": 99999 }\n  ]\n}" },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          }
+        },
+        {
+          "name": "Invalid Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@inovasia.com\",\n  \"password\": \"wrongpassword\"\n}" },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
           }
         }
       ]

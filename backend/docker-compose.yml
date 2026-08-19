@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ─── Node.js Express API ───────────────────────────────────────────
   api:
@@ -9,16 +7,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8088:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_USER=devuser
-      - DB_PASSWORD=PasswordAman123!
-      - DB_NAME=db_training
-      - JWT_SECRET=inhouse-training-jwt-secret-2024
-      - JWT_EXPIRES_IN=24h
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy

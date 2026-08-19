@@ -1,15 +1,13 @@
 {
   "name": "inhouse-training-backend",
-  "version": "1.0.0",
-  "description": "Backend API - Order Management System (Inhouse Training)",
-  "main": "src/app.js",
+  "version": "2.0.0",
+  "description": "Order Management API - Layered Architecture (Inhouse Training)",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
-    "migrate": "node src/database/migrate.js",
-    "seed": "node src/database/seed.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
   },
-  "keywords": ["express", "mysql", "jwt", "order-management"],
+  "keywords": ["express", "mysql", "jwt", "layered-architecture", "order-management"],
   "author": "Ade Setiawan",
   "license": "ISC",
   "dependencies": {
@@ -17,6 +15,9 @@
     "cors": "2.8.5",
     "dotenv": "16.4.5",
     "express": "4.21.0",
+    "express-rate-limit": "7.4.0",
+    "helmet": "7.1.0",
+    "joi": "17.13.3",
     "jsonwebtoken": "9.0.2",
     "mysql2": "3.11.0",
     "uuid": "10.0.0"

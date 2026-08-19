@@ -1,195 +1,74 @@
-const ProductModel = require('../models/product.model');
+const productService = require('../services/product.service');
+const asyncHandler = require('../utils/asyncHandler');
+const response = require('../utils/response');
 
-class ProductController {
+/**
+ * Product Controller
+ * Handles HTTP req/res only - no business logic
+ */
+const productController = {
   /**
-   * GET /api/products
-   * Get all products with pagination & search
+   * GET /api/v1/products
    */
-  static async getAll(req, res) {
-    try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const search = req.query.search || '';
+  getAll: asyncHandler(async (req, res) => {
+    const { page, limit, search } = req.query;
+    const result = await productService.getAll({ page, limit, search });
 
-      const result = await ProductModel.findAll({ page, limit, search });
-
-      res.json({
-        status: 'success',
-        ...result
-      });
-    } catch (error) {
-      console.error('Get Products Error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
+    return response.success(res, {
+      message: 'Products retrieved successfully.',
+      data: result
+    });
+  }),
 
   /**
-   * GET /api/products/:id
-   * Get single product by ID
+   * GET /api/v1/products/:id
    */
-  static async getById(req, res) {
-    try {
-      const product = await ProductModel.findById(req.params.id);
-      if (!product) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Product not found.'
-        });
-      }
+  getById: asyncHandler(async (req, res) => {
+    const product = await productService.getById(parseInt(req.params.id));
 
-      res.json({
-        status: 'success',
-        data: { product }
-      });
-    } catch (error) {
-      console.error('Get Product Error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
+    return response.success(res, {
+      message: 'Product retrieved successfully.',
+      data: { product }
+    });
+  }),
 
   /**
-   * POST /api/products
-   * Create new product (admin only)
+   * POST /api/v1/products
    */
-  static async create(req, res) {
-    try {
-      const { sku, name, price, stock, description } = req.body;
+  create: asyncHandler(async (req, res) => {
+    const { sku, name, price, stock, description } = req.body;
+    const product = await productService.create({ sku, name, price, stock, description });
 
-      // Validation
-      if (!sku || !name || price === undefined) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'SKU, name, and price are required.'
-        });
-      }
-
-      // Check duplicate SKU
-      const existing = await ProductModel.findBySku(sku);
-      if (existing) {
-        return res.status(409).json({
-          status: 'error',
-          message: 'SKU already exists.'
-        });
-      }
-
-      const product = await ProductModel.create({ sku, name, price, stock, description });
-
-      res.status(201).json({
-        status: 'success',
-        message: 'Product created successfully.',
-        data: { product }
-      });
-    } catch (error) {
-      console.error('Create Product Error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
+    return response.created(res, {
+      message: 'Product created successfully.',
+      data: { product }
+    });
+  }),
 
   /**
-   * PUT /api/products/:id
-   * Update product (admin only)
+   * PUT /api/v1/products/:id
    */
-  static async update(req, res) {
-    try {
-      const { id } = req.params;
-      const { sku, name, price, stock, description } = req.body;
+  update: asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { sku, name, price, stock, description } = req.body;
+    const product = await productService.update(id, { sku, name, price, stock, description });
 
-      // Check product exists
-      const product = await ProductModel.findById(id);
-      if (!product) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Product not found.'
-        });
-      }
-
-      // Check duplicate SKU (if changed)
-      if (sku && sku !== product.sku) {
-        const existing = await ProductModel.findBySku(sku);
-        if (existing) {
-          return res.status(409).json({
-            status: 'error',
-            message: 'SKU already exists.'
-          });
-        }
-      }
-
-      await ProductModel.update(id, {
-        sku: sku || product.sku,
-        name: name || product.name,
-        price: price !== undefined ? price : product.price,
-        stock: stock !== undefined ? stock : product.stock,
-        description: description !== undefined ? description : product.description
-      });
-
-      const updated = await ProductModel.findById(id);
-
-      res.json({
-        status: 'success',
-        message: 'Product updated successfully.',
-        data: { product: updated }
-      });
-    } catch (error) {
-      console.error('Update Product Error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
+    return response.success(res, {
+      message: 'Product updated successfully.',
+      data: { product }
+    });
+  }),
 
   /**
-   * DELETE /api/products/:id
-   * Delete product (admin only)
+   * DELETE /api/v1/products/:id
    */
-  static async delete(req, res) {
-    try {
-      const { id } = req.params;
+  delete: asyncHandler(async (req, res) => {
+    await productService.delete(parseInt(req.params.id));
 
-      const product = await ProductModel.findById(id);
-      if (!product) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Product not found.'
-        });
-      }
+    return response.success(res, {
+      message: 'Product deleted successfully.'
+    });
+  })
+};
 
-      const deleted = await ProductModel.delete(id);
-      if (!deleted) {
-        return res.status(409).json({
-          status: 'error',
-          message: 'Cannot delete product. It may be referenced by existing orders.'
-        });
-      }
-
-      res.json({
-        status: 'success',
-        message: 'Product deleted successfully.'
-      });
-    } catch (error) {
-      // Handle FK constraint error
-      if (error.code === 'ER_ROW_IS_REFERENCED_2') {
-        return res.status(409).json({
-          status: 'error',
-          message: 'Cannot delete product. It is referenced by existing orders.'
-        });
-      }
-      console.error('Delete Product Error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Internal server error.'
-      });
-    }
-  }
-}
-
-module.exports = ProductController;
+module.exports = productController;
